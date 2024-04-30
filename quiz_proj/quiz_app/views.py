@@ -125,7 +125,9 @@ class GetQuestionsByQuizId(APIView):
         questions = QuizQuestion.objects.filter(quiz=quiz)
         questions = GetQuestionsSerializer(questions, many=True)
         if questions.data:
-            questions.data.pop("correct_option")
+            # for question in questions.data:
+            #     question.pop("correct_option")
+
             return Response({"data": questions.data}, status=status.HTTP_200_OK)
 
         return Response({"msg": "No questions added yet!"}, status=status.HTTP_404_NOT_FOUND)
