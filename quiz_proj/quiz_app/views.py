@@ -10,6 +10,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils import timezone
 from django.contrib.auth import logout
 from datetime import datetime, timedelta
+from .models import UserGivenQuizes
+
 
 # Create your views here.
 
@@ -42,7 +44,7 @@ class UserLoginView(APIView):
                 "user_id": is_user.id,
                 "access_token": token,
                 "msg": "user login successfully"
-            },status=status.HTTP_200_OK)
+            }, status=status.HTTP_200_OK)
         return Response({
             "msg": "Unfortunately the credentials you are entering is not matching our records."
                    "Please try again later or try resetting the credentials"
@@ -63,12 +65,11 @@ class AdminLoginView(APIView):
                 "user_id": is_user.id,
                 "access_token": token,
                 "msg": "user login successfully"
-            },status=status.HTTP_200_OK)
+            }, status=status.HTTP_200_OK)
         return Response({
             "msg": "Unfortunately the credentials you are entering is not matching our records."
                    "Please try again later or try resetting the credentials"
         }, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 class QuizFormView(APIView):
@@ -97,7 +98,7 @@ class CreateQuizView(APIView):
         serializer = CreateQuizSerializer(data=quiz_data)
         if serializer.is_valid():
             serializer.save(created_by=request.user)
-            return Response({"msg": "Quiz Created Successfully"}, status=status.HTTP_201_CREATED)
+            return Response({"msg": "Quiz Created Successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
         return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -107,9 +108,11 @@ class GetQuizView(APIView):
     def get(self, request):
         current_timestamp = timezone.now()
         quizzes = Quiz.objects.filter(start_time__gte=current_timestamp)
+        active_quizes = Quiz.objects.filter(start_time__lte=current_timestamp, end_time__gte=current_timestamp)
         if quizzes.exists():
-            serializer = GetQuizSerializer(quizzes, many=True)
-            return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+            upcomingQuiz_Serializer = GetQuizSerializer(quizzes, many=True)
+            activeQuiz_Serializer = GetQuizSerializer(active_quizes, many=True)
+            return Response({"Upcoming_quiz": upcomingQuiz_Serializer.data, "active_quiz": activeQuiz_Serializer.data}, status=status.HTTP_200_OK)
 
         return Response({"msg": "There is no upcoming quiz!"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -119,14 +122,20 @@ class GetQuestionsByQuizId(APIView):
 
     def get(self, request, quiz_id):
         try:
-            quiz = Quiz.objects.get(id=quiz_id)
+            current_timestamp = timezone.now()
+            quiz = Quiz.objects.get(id=quiz_id, start_time__lte=current_timestamp, end_time__gte=current_timestamp)
         except Quiz.DoesNotExist:
-            return Response({"msg": "Quiz does not exist, Please try again later!"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"msg": "Quiz expired or haven't started yet, Please try again later!"}, status=status.HTTP_400_BAD_REQUEST)
         questions = QuizQuestion.objects.filter(quiz=quiz)
         questions = GetQuestionsSerializer(questions, many=True)
         if questions.data:
-            # for question in questions.data:
-            #     question.pop("correct_option")
+            for question in questions.data:
+                try:
+                    answer_instance = UserAnswer.objects.get(question=question["id"], user=request.user)
+                    question.update(is_answered=answer_instance.is_answered)
+
+                except UserAnswer.DoesNotExist:
+                    question.update(is_answered=False)
 
             return Response({"data": questions.data}, status=status.HTTP_200_OK)
 
@@ -158,7 +167,8 @@ class SubmitAnswersView(APIView):
         try:
             quiz_instance = Quiz.objects.get(id=quiz_id)
             question_instance = QuizQuestion.objects.get(id=question_id, quiz=quiz_instance)
-            already_submitted = UserAnswer.objects.filter(user=request.user, question=question_instance, quiz=quiz_instance).first()
+            already_submitted = UserAnswer.objects.filter(user=request.user, question=question_instance,
+                                                          quiz=quiz_instance).first()
             if already_submitted is not None:
                 return Response({"msg": "Question already submitted by the user"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -166,16 +176,19 @@ class SubmitAnswersView(APIView):
             return Response({"msg": f"No quiz found with the ID: '{quiz_id}'"}, status=status.HTTP_404_NOT_FOUND)
 
         except QuizQuestion.DoesNotExist:
-            return Response({"msg": f"No question found with the ID: '{question_id}' in quiz ID: {quiz_id}"},status=status.HTTP_404_NOT_FOUND)
+            return Response({"msg": f"No question found with the ID: '{question_id}' in quiz ID: {quiz_id}"},
+                            status=status.HTTP_404_NOT_FOUND)
 
         except ValidationError as e:
-            return Response({"msg": f"Invalid question ID"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"msg": f"Invalid question ID"}, status=status.HTTP_400_BAD_REQUEST)
         serializer = SubmitAnswerSerializer(data=data)
         if serializer.is_valid():
             if str(question_instance.correct_option) == str(serializer.validated_data["answer"]):
-                serializer.save(user=request.user, quiz=quiz_instance, question=question_instance, is_correct=True)
+                serializer.save(user=request.user, quiz=quiz_instance, question=question_instance, is_correct=True,
+                                is_answered=True)
             else:
-                serializer.save(user=request.user, quiz=quiz_instance, question=question_instance)
+                serializer.save(user=request.user, quiz=quiz_instance, question=question_instance, is_answered=True)
+
             return Response({"msg": "Answer Submitted", "data": serializer.data}, status=status.HTTP_200_OK)
 
         return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -199,7 +212,8 @@ class UpdateQuestionView(APIView):
             serializer.save()
             return Response({"msg": "Quiz Updated successfully!", "data": serializer.data}, status=status.HTTP_200_OK)
 
-        return Response({"msg": "Something went wrong!", "error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"msg": "Something went wrong!", "error": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST)
 
 
 class AdminPanelView(APIView):
@@ -239,7 +253,7 @@ class GetUsersView(APIView):
                 'email': user.email,
                 "number_of_quiz_attempt": len(result_info),
                 "number_of_quiz_passed": len(passed_quiz),
-                "number_of_quiz_failed": len(result_info)-len(passed_quiz)
+                "number_of_quiz_failed": len(result_info) - len(passed_quiz)
             }
             data.append(combined_data)
         return Response({"data": data}, status=status.HTTP_200_OK)
@@ -259,7 +273,52 @@ class UpdateQuizView(APIView):
             serializer.save()
             return Response({"data": serializer.data, "msg": "Quiz Updated Successfully"}, status=status.HTTP_200_OK)
 
-        return Response({"msg": "Something went wrong!", "error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"msg": "Something went wrong!", "error": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class ToggleCheckQuiz(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, quiz_id):
+        try:
+            quiz_instance = Quiz.objects.get(id=quiz_id)
+            check_instance = UserGivenQuizes.objects.get(user=request.user, quiz=quiz_instance)
+
+        except Quiz.DoesNotExist:
+            return Response({"msg": f"No quiz found with this ID: {quiz_id}"}, status=status.HTTP_404_NOT_FOUND)
+
+        except UserGivenQuizes.DoesNotExist:
+            check_instance = UserGivenQuizes.objects.create(user=request.user, quiz=quiz_instance, has_given=True)
+            return Response({"msg": "Toggled to True"},
+                            status=status.HTTP_201_CREATED)
+
+        if check_instance.has_given:
+            return Response({"msg": "quiz already given"}, status=status.HTTP_200_OK)
+
+        check_instance.has_given = True
+        check_instance.save()
+        return Response({"msg": "Toggled to True"},
+                        status=status.HTTP_200_OK)
+
+
+class CheckUserHasGivenQuiz(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, quiz_id):
+        try:
+            quiz_instance = Quiz.objects.get(id=quiz_id)
+            check_instance = UserGivenQuizes.objects.get(user=request.user, quiz=quiz_instance)
+        except Quiz.DoesNotExist:
+            return Response({"msg": f"No quiz found with this ID: {quiz_id}"}, status=status.HTTP_404_NOT_FOUND)
+
+        except UserGivenQuizes.DoesNotExist:
+            return Response({"msg": "quiz not given yet"}, status=status.HTTP_200_OK)
+
+        if check_instance.has_given:
+            return Response({"msg": "quiz already given"}, status=status.HTTP_200_OK)
+
+        return Response({"msg": "quiz not given yet"}, status=status.HTTP_200_OK)
 
 
 class GetAllQuiz(APIView):
@@ -282,7 +341,7 @@ class DeleteQuizView(APIView):
         except Quiz.DoesNotExist:
             return Response({"msg": f"No quiz found with this ID: {quiz_id}"}, status=status.HTTP_404_NOT_FOUND)
         quiz_instance.delete()
-        return Response({"msg": "Quiz deleted successfully"},status=status.HTTP_200_OK)
+        return Response({"msg": "Quiz deleted successfully"}, status=status.HTTP_200_OK)
 
 
 class DeleteQuestionView(APIView):
@@ -296,7 +355,6 @@ class DeleteQuestionView(APIView):
 
         except QuizQuestion.DoesNotExist:
             return Response({"msg": f"No question found with this ID: {question_id}"}, status=status.HTTP_404_NOT_FOUND)
-
 
         question_instance.delete()
         return Response({"msg": "Question deleted successfully!"}, status=status.HTTP_200_OK)

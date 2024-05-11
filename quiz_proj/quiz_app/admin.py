@@ -35,6 +35,7 @@ admin.site.register(Quiz)
 admin.site.register(QuizQuestion)
 admin.site.register(UserAnswer)
 admin.site.register(UserResult)
+admin.site.register(UserGivenQuizes)
 
 # and also we can write like this
 # admin.site.register(settings.AUTH_USER_MODEL)

@@ -97,7 +97,7 @@ class Quiz(models.Model):
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
-        return f" Title - {self.title}"
+        return f"{self.title}"
 
 
 class QuizQuestion(models.Model):
@@ -109,6 +109,7 @@ class QuizQuestion(models.Model):
     option_c = models.CharField(max_length=250, null=True, blank=True)
     option_d = models.CharField(max_length=250, null=True, blank=True)
     correct_option = models.CharField(max_length=120, null=True, blank=True)
+    # answer_by = models.()
 
     def __str__(self):
         return f"{self.quiz}/ {self.question}"
@@ -120,6 +121,7 @@ class UserAnswer(models.Model):
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE, blank=True, null=True)
     answer = models.CharField(max_length=120, null=False, blank=False, verbose_name="User Answer")
     is_correct = models.BooleanField(default=False, help_text="user answer is correct or not")
+    is_answered = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user}/{self.question}/{self.answer}/{self.is_correct}"
@@ -137,3 +139,14 @@ class UserResult(models.Model):
 
     def __str__(self):
         return f"{self.user}/{self.quiz}/{self.result}"
+
+
+class UserGivenQuizes(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, blank=True, null=True)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, blank=True, null=True)
+    has_given = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user}/{self.quiz}/{self.has_given}"
+
+# class
