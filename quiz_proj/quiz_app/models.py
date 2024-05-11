@@ -149,4 +149,3 @@ class UserGivenQuizes(models.Model):
     def __str__(self):
         return f"{self.user}/{self.quiz}/{self.has_given}"
 
-# class

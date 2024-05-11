@@ -109,12 +109,12 @@ class GetQuizView(APIView):
         current_timestamp = timezone.now()
         quizzes = Quiz.objects.filter(start_time__gte=current_timestamp)
         active_quizes = Quiz.objects.filter(start_time__lte=current_timestamp, end_time__gte=current_timestamp)
-        if quizzes.exists():
+        if quizzes.exists() or active_quizes.exists():
             upcomingQuiz_Serializer = GetQuizSerializer(quizzes, many=True)
             activeQuiz_Serializer = GetQuizSerializer(active_quizes, many=True)
-            return Response({"Upcoming_quiz": upcomingQuiz_Serializer.data, "active_quiz": activeQuiz_Serializer.data}, status=status.HTTP_200_OK)
+            return Response({"upcoming_quiz": upcomingQuiz_Serializer.data, "active_quiz": activeQuiz_Serializer.data}, status=status.HTTP_200_OK)
 
-        return Response({"msg": "There is no upcoming quiz!"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"msg": "There is no upcoming or active quiz!"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class GetQuestionsByQuizId(APIView):
