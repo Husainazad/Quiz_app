@@ -12,6 +12,7 @@ urlpatterns = [
     path("toggle-attempt/<str:quiz_id>", ToggleCheckQuiz.as_view(), name="toggle-given-quiz"),
     path("admin/add-question/<str:quiz_id>", AddQuestionsView.as_view(), name="add-question"),
     path("quiz/<str:quiz_id>", GetQuestionsByQuizId.as_view(), name="get-questions"),
+    path("admin/quiz/<str:quiz_id>", GetQuestionByQuizIdAdmin.as_view(), name="get-questions-admin"),
     path("admin/update-quiz/<str:quiz_id>", UpdateQuizView.as_view(), name="get-questions"),
     path("submit/<str:quiz_id>/<str:question_id>", SubmitAnswersView.as_view(), name="Submit-answer"),
     path("admin/update-question/<str:question_id>", UpdateQuestionView.as_view(), name="update-question"),

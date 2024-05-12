@@ -109,7 +109,6 @@ class QuizQuestion(models.Model):
     option_c = models.CharField(max_length=250, null=True, blank=True)
     option_d = models.CharField(max_length=250, null=True, blank=True)
     correct_option = models.CharField(max_length=120, null=True, blank=True)
-    # answer_by = models.()
 
     def __str__(self):
         return f"{self.quiz}/ {self.question}"

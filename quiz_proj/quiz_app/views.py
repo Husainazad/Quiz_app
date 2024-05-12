@@ -117,6 +117,22 @@ class GetQuizView(APIView):
         return Response({"msg": "There is no upcoming or active quiz!"}, status=status.HTTP_404_NOT_FOUND)
 
 
+class GetQuestionByQuizIdAdmin(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request, quiz_id):
+        try:
+            quiz_instance = Quiz.objects.get(id=quiz_id)
+        except Quiz.DoesNotExist:
+            return Response({"msg": f"No quiz found with the ID : {quiz_id}"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        questions = QuizQuestion.objects.filter(quiz=quiz_instance)
+        questions = GetQuestionsSerializer(questions, many=True)
+        if questions.data:
+
+            return Response({"data": questions.data}, status=status.HTTP_200_OK)
+
+        return Response({"msg": "No questions added yet!"}, status=status.HTTP_404_NOT_FOUND)
+
 class GetQuestionsByQuizId(APIView):
     permission_classes = [IsAuthenticated]
 
